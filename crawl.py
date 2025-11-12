@@ -6,8 +6,8 @@ import asyncio
 import argparse
 import datetime
 import subprocess
-import psutil
 import getpass
+import psutil
 
 from langchain_ollama import ChatOllama
 import torch
@@ -22,12 +22,19 @@ from crawl4ai.deep_crawling import BFSDeepCrawlStrategy
 from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
 
 from utils.colors import TColors
+from utils.logging import log_extraction
 from utils.structures import Extraction
+
+WEBSITE_LIST: list[str] = [
+    "https://docs.langchain.com/",
+]
+LOGGING_PATH: str = "./logs/"
 
 
 async def main(
     device: str = "cpu",
     model: str = "llama3.1",
+    crawl_depth: int = 1,
 ):
     """
     Main function for crawling and extracting structured data using LLMs.
@@ -53,6 +60,9 @@ async def main(
             f"{TColors.ENDC}is not available. Setting device to CPU instead."
         )
         device = torch.device("cpu", 0)
+
+    # activate crawl4ai
+    subprocess.call("crawl4ai-setup", shell=True)
 
     # pull the ollama model
     subprocess.call(f"ollama pull {model}", shell=True)
@@ -97,77 +107,83 @@ async def main(
         + "#" * (shutil.get_terminal_size().columns - 14)
     )
     print(f"## {TColors.OKBLUE}{TColors.BOLD}Model{TColors.ENDC}: {model}")
+    print(f"## {TColors.OKBLUE}{TColors.BOLD}Crawl Depth{TColors.ENDC}: {crawl_depth}")
     print("#" * shutil.get_terminal_size().columns + "\n")
 
 
     # ------------------------------ Crawling -------------------------------
     # set up the crawler configurations and crawl the websites
-    print(f"{TColors.HEADER}{TColors.BOLD}Starting Website Crawl{TColors.ENDC}")
-    browser_config = BrowserConfig(
-        headless=True
-    )
-    crawler_config = CrawlerRunConfig(
-        deep_crawl_strategy=BFSDeepCrawlStrategy(max_depth=1, include_external=False),
-        scraping_strategy=LXMLWebScrapingStrategy(),
-        verbose=True,
-    )
-
-    async with AsyncWebCrawler(config=browser_config) as crawler:
-        crawling_results: CrawlResult = await crawler.arun(
-            url="https://docs.langchain.com/", config=crawler_config
+    for url in WEBSITE_LIST:
+        print(f"{TColors.HEADER}{TColors.BOLD}Starting Website Crawl{TColors.ENDC}")
+        browser_config = BrowserConfig(
+            headless=True
+        )
+        crawler_config = CrawlerRunConfig(
+            deep_crawl_strategy=BFSDeepCrawlStrategy(max_depth=crawl_depth, include_external=False),
+            scraping_strategy=LXMLWebScrapingStrategy(),
+            verbose=True,
         )
 
-    print(f"{TColors.OKGREEN}Crawling completed successfully!{TColors.ENDC}\n")
-    print(f"{TColors.OKBLUE}Total Pages Crawled: {len(crawling_results)}{TColors.ENDC}\n")
+        async with AsyncWebCrawler(config=browser_config) as crawler:
+            crawling_results: CrawlResult = await crawler.arun(
+                url=url, config=crawler_config
+            )
 
-    # -------------------------- LLM-based Extraction -------------------------
-    # use the LLM to check for PII information in every crawled page
-    print(f"{TColors.HEADER}{TColors.BOLD}Starting LLM-based Extraction{TColors.ENDC}")
+        print(f"{TColors.OKGREEN}Crawling completed successfully!{TColors.ENDC}\n")
+        print(f"{TColors.OKBLUE}Total Pages Crawled: {len(crawling_results)}{TColors.ENDC}\n")
 
-    for page in tqdm(crawling_results, desc="Extracting Information from Pages"):
-        llm = ChatOllama(
-            model=model,
-            temperature=0,
-            device=device,
-        )
-        llm = llm.with_structured_output(Extraction)
+        # -------------------------- LLM-based Extraction -------------------------
+        # use the LLM to check for PII information in every crawled page
+        print(f"{TColors.HEADER}{TColors.BOLD}Starting LLM-based Extraction{TColors.ENDC}")
 
-        webpage_content = page.markdown.raw_markdown
+        for page in tqdm(crawling_results, desc="Extracting Information from Pages"):
+            llm = ChatOllama(
+                model=model,
+                temperature=0,
+                device=device,
+            )
+            llm = llm.with_structured_output(Extraction)
 
-        messages = [
-            (
-                "system",
-                """
-                You are an expert web data extractor.
-                You will help the user to search for PII handling information on websites.
-                """,
-            ),
-            (
-                "human",
-                """
-                Analyze the following webpage content and determine if it contains any information 
-                related to the handling of Personally Identifiable Information (PII). Remember, 
-                Personally Identifiable Information (PII) is any information that directly or 
-                indirectly identifies, relates to, describes, or is capable of being associated 
-                with a particular individual. Do not look for PII data itself, but for information
-                about how PII data is handled, processed, stored, or protected. The webpage 
-                (converted to markdown) looks as follows:
+            webpage_content = page.markdown.raw_markdown
 
-                """+webpage_content,
-            ),
-        ]
+            messages = [
+                (
+                    "system",
+                    """
+                    You are an expert web data extractor.
+                    You will help the user to search for PII handling information on websites.
+                    """,
+                ),
+                (
+                    "human",
+                    """
+                    Analyze the following webpage content and determine if it contains any 
+                    information related to the handling of Personally Identifiable Information 
+                    (PII). Remember, Personally Identifiable Information (PII) is any information 
+                    that directly or indirectly identifies, relates to, describes, or is capable of 
+                    being associated with a particular individual. Do not look for PII data itself, 
+                    but for information about how PII data is handled, processed, stored, or 
+                    protected. The webpage (converted to markdown) looks as follows:
 
-        response = llm.invoke(messages)
+                    """+webpage_content,
+                ),
+            ]
 
-        if response is None:
-            print(f"{TColors.FAIL}LLM failed processing following URL: {page.url}{TColors.ENDC}")
-            continue
+            response = llm.invoke(messages)
 
-        response.url = page.url
+            if response is None:
+                print(f"{TColors.FAIL}LLM failed processing: {page.url}{TColors.ENDC}")
+                continue
 
-        print(f"Page URL: {response.url}")
-        print(f"Is PII Handling Present: {response.pii_information_present}")
-        print(f"How is it present: {response.information}\n")
+            response.url = page.url
+
+            # log the extraction result
+            log_extraction(
+                extraction=[response.model_dump()],
+                output_name="extractions.json",
+                log_path=LOGGING_PATH,
+            )
+
 
 
 if __name__ == "__main__":
@@ -186,8 +202,14 @@ if __name__ == "__main__":
         default="llama3.1",
         help="specifies the model to use for inference",
     )
+    parser.add_argument(
+        "--crawl_depth",
+        "-cd",
+        type=int,
+        default=15,
+        help="specifies the maximum crawl depth for deep crawling",
+    )
     args = parser.parse_args()
-
     asyncio.run(
         main(**vars(args))
     )
