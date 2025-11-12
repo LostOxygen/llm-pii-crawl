@@ -1,3 +1,5 @@
 crawl4ai
 psutil
 langchain-ollama
+torch
+tqdm
