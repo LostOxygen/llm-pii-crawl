@@ -158,7 +158,11 @@ async def main(
         ]
 
         response = llm.invoke(messages)
-        assert response is not None, f"{TColors.FAIL}LLM failed process: {page.url}"
+
+        if response is None:
+            print(f"{TColors.FAIL}LLM failed processing the following URL: {page.url}")
+            continue
+
         response.url = page.url
 
         print(f"Page URL: {response.url}")
