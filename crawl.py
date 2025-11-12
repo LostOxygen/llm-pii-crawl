@@ -147,6 +147,9 @@ async def main(
             llm = llm.with_structured_output(Extraction)
 
             webpage_content = page.markdown.raw_markdown
+            if webpage_content is None:
+                print(f"{TColors.FAIL}{page.url} has no content!{TColors.ENDC}")
+                continue
 
             messages = [
                 (
@@ -174,7 +177,7 @@ async def main(
             response = llm.invoke(messages)
 
             if response is None:
-                print(f"{TColors.FAIL}LLM failed processing: {page.url}{TColors.ENDC}")
+                print(f"{TColors.FAIL}LLM failed processing {page.url}{TColors.ENDC}")
                 continue
 
             response.url = page.url
