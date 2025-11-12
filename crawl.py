@@ -136,6 +136,8 @@ async def main(
         # use the LLM to check for PII information in every crawled page
         print(f"{TColors.HEADER}{TColors.BOLD}Starting LLM-based Extraction{TColors.ENDC}")
 
+        extraction_list: list[Extraction] = []
+
         for page in tqdm(crawling_results, desc="Extracting Information from Pages"):
             llm = ChatOllama(
                 model=model,
@@ -176,13 +178,14 @@ async def main(
                 continue
 
             response.url = page.url
+            extraction_list.append(response)
 
-            # log the extraction result
-            log_extraction(
-                extraction=[response.model_dump()],
-                output_name="extractions.json",
-                log_path=LOGGING_PATH,
-            )
+        # log the extraction result
+        log_extraction(
+            extraction=extraction_list,
+            output_name=f"{url}_extractions.json",
+            log_path=LOGGING_PATH,
+        )
 
 
 
