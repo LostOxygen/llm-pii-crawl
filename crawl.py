@@ -114,7 +114,8 @@ async def main(
     # ------------------------------ Crawling -------------------------------
     # set up the crawler configurations and crawl the websites
     for url in WEBSITE_LIST:
-        print(f"{TColors.HEADER}{TColors.BOLD}Starting Website Crawl{TColors.ENDC}")
+        base_url = url.split("/")[2]
+        print(f"{TColors.HEADER}{TColors.BOLD}Starting Crawl for Base URL: {url}{TColors.ENDC}")
         browser_config = BrowserConfig(
             headless=True
         )
@@ -186,10 +187,14 @@ async def main(
         # log the extraction result
         log_extraction(
             extraction_list=extraction_list,
-            output_name=f"{url}_extractions.json",
+            output_name=f"{base_url}_extractions.json",
             log_path=LOGGING_PATH,
         )
-
+        print(f"{TColors.OKGREEN}LLM-based Extraction completed successfully!{TColors.ENDC}\n")
+        print(
+            f"{TColors.OKBLUE}Extraction results logged to "
+            f"{os.path.join(LOGGING_PATH, f'{base_url}_extractions.json')}{TColors.ENDC}\n"
+        )
 
 
 if __name__ == "__main__":
