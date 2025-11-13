@@ -28,6 +28,9 @@ from utils.structures import Extraction
 
 WEBSITE_LIST: list[str] = [
     "https://docs.langchain.com/",
+    "https://docs.haystack.deepset.ai/docs/intro",
+    "https://help.latenode.com",
+    "https://ben.clavie.eu/ragatouille/",
 ]
 LOGGING_PATH: str = "./logs/"
 
