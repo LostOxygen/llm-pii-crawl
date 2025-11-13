@@ -114,6 +114,14 @@ async def main(
     print(f"## {TColors.OKBLUE}{TColors.BOLD}Crawl Depth{TColors.ENDC}: {crawl_depth}")
     print("#" * shutil.get_terminal_size().columns + "\n")
 
+    # initialize the LLM
+    llm = ChatOllama(
+                model=model,
+                temperature=0,
+                device=device,
+            )
+    llm = llm.with_structured_output(Extraction)
+
 
     # ------------------------------ Crawling -------------------------------
     # set up the crawler configurations and crawl the websites
@@ -145,13 +153,6 @@ async def main(
         extraction_list: list[Extraction] = []
 
         for page in tqdm(crawling_results, desc="Extracting Information from Pages"):
-            llm = ChatOllama(
-                model=model,
-                temperature=0,
-                device=device,
-            )
-            llm = llm.with_structured_output(Extraction)
-
             webpage_content = page.markdown.fit_markdown
             if webpage_content is None:
                 print(f"{TColors.FAIL}{page.url} has no content!{TColors.ENDC}")
