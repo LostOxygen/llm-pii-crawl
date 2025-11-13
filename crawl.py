@@ -153,6 +153,9 @@ async def main(
         extraction_list: list[Extraction] = []
 
         for page in tqdm(crawling_results, desc="Extracting Information from Pages"):
+            if page is None:
+                continue
+
             webpage_content = page.markdown.fit_markdown
             if webpage_content is None:
                 print(f"{TColors.FAIL}{page.url} has no content!{TColors.ENDC}")
