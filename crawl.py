@@ -65,9 +65,6 @@ async def main(
         )
         device = torch.device("cpu", 0)
 
-    # activate crawl4ai
-    subprocess.call("crawl4ai-setup", shell=True)
-
     # pull the ollama model
     subprocess.call(f"ollama pull {model}", shell=True)
 
